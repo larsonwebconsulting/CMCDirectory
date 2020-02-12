@@ -1,0 +1,447 @@
+<html lang="en">
+<head>
+  <title>CMC Print Directory</title>
+    <style>
+      .household_entry { float:left; width:50%; height:4in; font-size: 10pt;}
+      .HouseholdMembers { margin-top:0px;}
+      .HouseholdContacts { margin-top:0px;}
+      .HouseholdAddress { margin-top:0px;}
+      .HouseholdName { font-size: 11pt; margin-top:0px;}
+      .HouseholdPhoto { margin-top:0px;}
+      .HouseholdAddress { margin-top:0px;}
+
+      @media print {
+        @page { size: 5.5in 8.5in; margin: 0.25in; }
+        .page_content { height: 8in; width:5in; }
+	      .household_entry { height:4in; }
+      }
+    </style>
+</head>
+<body>
+    {% assign no_avatar = 'https://people.planningcenteronline.com/static/no_photo_thumbnail.gif' %}
+  	{% assign household-count = 0 %}
+    {% for household in households %}
+  			{% assign household-count = household-count | plus: 1 %}
+        {% assign primary-first-name = "" %}
+        {% assign primary-last-name = "" %}
+        {% assign primary-name = "" %}
+        {% assign spouse-first-name = "" %}
+        {% assign spouse-last-name = "" %}
+        {% assign spouse-name = "" %}
+        {% assign spouse-ismember = false %}
+        {% assign address-line-a = "" %}
+        {% assign address-line-b = "" %}
+        {% assign primary-photo = "" %}
+
+        {% assign household-members = "" %}
+        {% assign household-members-fontweight = "" %}
+        {% assign household-contact-list = "" %}
+        {% assign home-contact-list = "" %}
+
+        {% comment %} BEGIN: Build head of household data {% endcomment %}
+        {% assign primary-first-name = household.primary_contact.first_name %}
+        {% assign primary-last-name = household.primary_contact.last_name %}
+        {% assign primary-name = household.primary_contact.name %}
+
+    	{% assign first-initial = "" %}
+        {% if household.active_adults.size >= 2 %}
+        	{% assign first-initial = primary-first-name | truncate: 1, "" %}
+        {% endif %}
+
+        {% assign primary-ismember = false %}
+        {% if household.primary_contact.membership == "Member" %}
+            {% assign primary-ismember = true %}
+        {% endif %}
+
+        {% assign primary-contact-count = 0 %}
+        {% if household.active_adults.size >= 2 %}
+            {% assign primary-contact-list = primary-first-name | append: ": " %}
+        {% else %}
+            {% assign primary-contact-list = "" %}
+        {% endif %}
+        
+        {% if household.primary_contact.phone_numbers.size > 0 %}
+            {% for phonenumber in household.primary_contact.phone_numbers %}
+                {% comment %} Get the location, morph Mobile to Cell {% endcomment %}
+                {% assign phone-location = phonenumber.location %}
+                {% if phone-location == "Mobile" %}
+	                {% assign phone-location = "Cell" %}
+                {% endif %}
+
+                {% comment %} Fetch and format a phone number only if the type is not Other {% endcomment %}
+                {% if phone-location != "Other" %}
+                    {% comment %} Get the phone number digits and format them {% endcomment %}
+                    {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "\(" | remove: "\)" | split: "" %}
+                    {% assign phone-number = "" %}
+                    {% if phone-digits.size == 7 %}
+                        {% capture phone-number %}
+                            {{ phone-digits[0] }}{{ phone-digits[1] }}{{ phone-digits[2] }}-{{ phone-digits[3] }}{{ phone-digits[4] }}{{ phone-digits[5] }}{{ phone-digits[6] }}
+                        {% endcapture %}
+                    {% elsif phone-digits.size == 10 %}
+                        {% capture phone-number %}
+                            ({{ phone-digits[0] }}{{ phone-digits[1] }}{{ phone-digits[2] }}) {{ phone-digits[3] }}{{ phone-digits[4] }}{{ phone-digits[5] }}-{{ phone-digits[6] }}{{ phone-digits[7] }}{{ phone-digits[8] }}{{ phone-digits[9] }}
+                        {% endcapture %}
+                    {% endif %}
+
+                    {% comment %} Continue only if the number is not already in the list {% endcomment %}
+                    {% unless household-contact-list contains phone-number %}    
+                        {% comment %} Build the phone entry {% endcomment %}
+                        {% assign phone-entry = "" %}
+                        {% if phone-number.size > 0 %}
+                            {% assign phone-entry = phone-number %}
+                            {% if phone-location.size > 0 and phone-location != "Home" %}
+                                {% assign phone-location-initial = phone-location | slice: 0 | downcase %}
+                                {% assign phone-entry = phone-entry | append: " (" | append: phone-location-initial | append: ")"%}
+                            {% endif %}
+                        {% endif %}
+
+                        {% comment %} Add it to the phone list {% endcomment %}
+                        {% if phone-entry.size > 0 %}
+                            {% assign household-contact-list = household-contact-list | append: phone-entry | append: "|" %}
+                            {% case phone-location %}
+                                {% when "Home" %}
+		                            {% assign home-contact-list = home-contact-list | append: phone-entry | append: "|" %}
+                                {% else %}
+                                    {% assign primary-contact-count = primary-contact-count | plus: 1 %}
+		                            {% assign primary-contact-list = primary-contact-list | append: phone-entry | append: "|" %}
+                            {% endcase %}
+                        {%endif%}
+                    {% endunless %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+        
+        {% if household.primary_contact.emails %}
+            {% for email in household.primary_contact.emails %}
+                {% comment %} Fetch and format an email address only if the type is not Other {% endcomment %}
+                {% if email.location != "Other" %}
+                    {% comment %} Continue only if the address is not already in the list {% endcomment %}
+                    {% unless household-contact-list contains email.address %}    
+                        {% comment %} Build the email entry {% endcomment %}
+                        {% assign email-entry = email.address %}
+
+                        {% comment %} Add it to the email list {% endcomment %}
+                        {% if email-entry.size > 0 %}
+                            {% assign household-contact-list = household-contact-list | append: email-entry | append: "|" %}
+                            {% assign primary-contact-count = primary-contact-count | plus: 1 %}
+                            {% assign primary-contact-list = primary-contact-list | append: email-entry | append: "|"  %}
+                        {%endif%}
+                    {% endunless %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+        {% comment %} END: Build head of household data {% endcomment %}
+
+        {% comment %} Add other household members to the report {% endcomment %}
+        {% assign spouse-contact-list = "" %}
+        {% assign spouse-contact-count = 0 %}
+        {% assign kid-contact-list = "" %}
+        {% assign kid-contact-count = 0 %}
+        {% for person in household.people %}
+            {% comment %} Only use active entries that are NOT the head-of-house {% endcomment %}
+            {% if person.active and person.name != household.primary_contact.name %}
+                {% comment %} BEGIN: Build Spouse data {% endcomment %}
+                {% if household.primary_contact.marital_status == "Married" and person.name != household.primary_contact.name and person.marital_status == "Married" and person.gender != household.primary_contact.gender and person.child == false %}
+                    {% assign spouse-name = person.name %}
+                    {% assign spouse-first-name = person.first_name %}                    
+                    {% assign spouse-last-name = person.last_name %}
+                    {% assign spouse-ismember = false %}
+                    {% if person.membership == "Member" %}
+                        {% assign spouse-ismember = true %}
+                    {% endif %}
+
+                    {% unless person.primary_phone_number == household.primary_contact.primary_phone_number %}
+                        {% assign tmp-i = person.first_name | truncate: 1, "" %}
+                    {% endunless %}
+
+                    {% assign first-initial = "" %}
+                    {% if household.active_adults.size >= 2 %}
+                        {% assign first-initial = spouse-first-name | truncate: 1, "" %}
+                    {% endif %}
+
+                    {% assign spouse-contact-list = spouse-first-name | append: ": " %}
+                    {% if person.phone_numbers.size > 0 %}
+                        {% for phonenumber in person.phone_numbers %}
+                            {% comment %} Get the location, morph Mobile to Cell {% endcomment %}
+                            {% assign phone-location = phonenumber.location %}
+                            {% if phone-location == "Mobile" %}
+                                {% assign phone-location = "Cell" %}
+                            {% endif %}
+
+                            {% comment %} Fetch and format a phone number only if the type is not Other {% endcomment %}
+                            {% if phone-location != "Other" %}
+                                {% comment %} Get the phone number digits and format them {% endcomment %}
+                                {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "\(" | remove: "\)" | split: "" %}
+                                {% assign phone-number = "" %}
+                                {% if phone-digits.size == 7 %}
+                                    {% capture phone-number %}
+                                        {{ phone-digits[0] }}{{ phone-digits[1] }}{{ phone-digits[2] }}-{{ phone-digits[3] }}{{ phone-digits[4] }}{{ phone-digits[5] }}{{ phone-digits[6] }}
+                                    {% endcapture %}
+                                {% elsif phone-digits.size == 10 %}
+                                    {% capture phone-number %}
+                                        ({{ phone-digits[0] }}{{ phone-digits[1] }}{{ phone-digits[2] }}) {{ phone-digits[3] }}{{ phone-digits[4] }}{{ phone-digits[5] }}-{{ phone-digits[6] }}{{ phone-digits[7] }}{{ phone-digits[8] }}{{ phone-digits[9] }}
+                                    {% endcapture %}
+                                {% endif %}
+                                {% assign phone-number = phone-number | strip %}
+
+                                {% comment %} Continue only if the number is not already in the list {% endcomment %}
+                                {% unless household-contact-list contains phone-number %}    
+                                    {% comment %} Build the phone entry {% endcomment %}
+                                    {% assign phone-entry = "" %}
+                                    {% if phone-number.size > 0 %}
+                                        {% assign phone-entry = phone-number %}
+                                        {% if phone-location.size > 0 %}
+                                            {% assign phone-location-initial = phone-location | slice: 0 | downcase %}
+                                            {% assign phone-entry = phone-entry | append: " (" | append: phone-location-initial | append: ")"%}
+                                        {% endif %}
+                                    {% endif %}
+
+                                    {% comment %} Add it to the phone list {% endcomment %}
+                                    {% if phone-entry.size > 0 %}
+                                        {% assign household-contact-list = household-contact-list | append: phone-entry | append: "|" %}
+                                        {% case phone-location %}
+                                            {% when "Home" %}
+                                                {% assign home-contact-list = home-contact-list | append: phone-entry | append: "|" %}
+                                            {% else %}
+                                                {% assign spouse-contact-count = spouse-contact-count | plus: 1 %}
+                                                {% assign spouse-contact-list = spouse-contact-list | append: phone-entry | append: "|" %}
+                                        {% endcase %}
+                                    {%endif%}
+                                {% endunless %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if person.emails %}
+                        {% for email in person.emails %}
+                            {% comment %} Fetch and format an email address only if the type is not Other {% endcomment %}
+                            {% if email.location != "Other" %}
+                                {% comment %} Continue only if the address is not already in the list {% endcomment %}
+                                {% unless household-contact-list contains email.address %}    
+                                    {% comment %} Build the email entry {% endcomment %}
+                                    {% assign email-entry = email.address %}
+
+                                    {% comment %} Add it to the email list {% endcomment %}
+                                    {% if email-entry.size > 0 %}
+                                        {% assign household-contact-list = household-contact-list | append: email-entry | append: "|" %}
+                                        {% assign spouse-contact-count = spouse-contact-count | plus: 1 %}
+                                        {% assign spouse-contact-list = spouse-contact-list | append: email-entry | append: "|"  %}
+                                    {%endif%}
+                                {% endunless %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% comment %} END: Build Spouse data {% endcomment %}
+                {% else %}
+                    {% comment %} BEGIN: Build other household member data {% endcomment %}
+                    {% assign person-name = person.first_name %}
+                    {% if person.last_name != household.primary_contact.last_name %}
+                        {% assign person-name = person.name %}
+                    {% endif %}
+
+                    {% assign household-members = household-members | append: person-name | append: "|" %}
+                    {% if person.membership == "Member" %}
+                        {% assign household-members-fontweight = household-members-fontweight | append: "bold" | append: "|"  %}
+                    {% else %}
+                        {% assign household-members-fontweight = household-members-fontweight | append: "normal" | append: "|" %}
+                    {% endif %}
+
+                    {% comment %} Only assign an initial if there is more than one adult in the house. {% endcomment %}
+                    {% assign first-initial = "" %}
+                    {% if household.active_adults.size >= 2 %}
+                        {% assign first-initial = person.first_name | truncate: 1, "" %}
+                    {% endif %}
+                    {% assign this-kid-contact-list = person.first_name | append: ": " %}
+                    {% assign this-kid-contact-count = 0 %}
+
+                    {% if person.phone_numbers.size > 0 and person.child == false %}
+                        {% for phonenumber in person.phone_numbers %}
+                            {% comment %} Get the location, morph Mobile to Cell {% endcomment %}
+                            {% assign phone-location = phonenumber.location %}
+                            {% if phone-location == "Mobile" %}
+                                {% assign phone-location = "Cell" %}
+                            {% endif %}
+
+                            {% comment %} Fetch and format a phone number only if the type is not Other {% endcomment %}
+                            {% if phone-location != "Other" %}
+                                {% comment %} Get the phone number digits and format them {% endcomment %}
+                                {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "\(" | remove: "\)" | split: "" %}
+                                {% assign phone-number = "" %}
+                                {% if phone-digits.size == 7 %}
+                                    {% capture phone-number %}
+                                        {{ phone-digits[0] }}{{ phone-digits[1] }}{{ phone-digits[2] }}-{{ phone-digits[3] }}{{ phone-digits[4] }}{{ phone-digits[5] }}{{ phone-digits[6] }}
+                                    {% endcapture %}
+                                {% elsif phone-digits.size == 10 %}
+                                    {% capture phone-number %}
+                                        ({{ phone-digits[0] }}{{ phone-digits[1] }}{{ phone-digits[2] }}) {{ phone-digits[3] }}{{ phone-digits[4] }}{{ phone-digits[5] }}-{{ phone-digits[6] }}{{ phone-digits[7] }}{{ phone-digits[8] }}{{ phone-digits[9] }}
+                                    {% endcapture %}
+                                {% endif %}
+								{% assign phone-number = phone-number | strip %}
+
+                                {% comment %} Continue only if the number is not already in the list {% endcomment %}
+                                {% unless household-contact-list contains phone-number %}    
+                                    {% comment %} Build the phone entry {% endcomment %}
+                                    {% assign phone-entry = "" %}
+                                    {% if phone-number.size > 0 %}
+                                        {% assign phone-entry = phone-number %}
+                                        {% if phone-location.size > 0 %}
+                                            {% assign phone-location-initial = phone-location | slice: 0 | downcase %}
+                                            {% assign phone-entry = phone-entry | append: " (" | append: phone-location-initial | append: ")"%}
+                                        {% endif %}
+                                    {% endif %}
+
+                                    {% comment %} Add it to the phone list {% endcomment %}
+                                    {% if phone-entry.size > 0 %}
+                                        {% assign household-contact-list = household-contact-list | append: phone-entry | append: "|" %}
+                                        {% case phone-location %}
+                                            {% when "Home" %}
+                                                {% assign home-contact-list = home-contact-list | append: phone-entry | append: "|" %}
+                                            {% else %}
+                                                {% assign this-kid-contact-count = this-kid-contact-count | plus: 1 %}
+                                                {% assign this-kid-contact-list = this-kid-contact-list | append: phone-entry | append: "|" %}
+                                        {% endcase %}
+                                    {%endif%}
+                                {% endunless %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if person.emails and person.child == false %}
+                        {% for email in person.emails %}
+                            {% comment %} Fetch and format an email address only if the type is not Other {% endcomment %}
+                            {% if email.location != "Other" %}
+                                {% comment %} Continue only if the address is not already in the list {% endcomment %}
+                                {% unless household-contact-list contains email.address %}    
+                                    {% comment %} Build the email entry {% endcomment %}
+                                    {% assign email-entry = email.address %}
+
+                                    {% comment %} Add it to the email list {% endcomment %}
+                                    {% if email-entry.size > 0 %}
+                                        {% assign household-contact-list = household-contact-list | append: email-entry | append: "|" %}
+                                        {% assign this-kid-contact-count = this-kid-contact-count | plus: 1 %}
+                                        {% assign this-kid-contact-list = this-kid-contact-list | append: email-entry | append: "|"  %}
+                                    {%endif%}
+                                {% endunless %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if this-kid-contact-count > 0 %}
+                        {% assign kid-contact-count = kid-contact-count | plus: this-kid-contact-count %}
+                        {% assign kid-contact-list = kid-contact-list | append: this-kid-contact-list %}
+                    {% endif %}
+                    {% comment %} END: Build other household member data {% endcomment %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+
+        {% comment %} Build the actual contact list to use in the report {% endcomment %}
+        {% assign household-contact-list = home-contact-list %}
+        {% if primary-contact-count > 0 %}
+            {% assign household-contact-list = household-contact-list | append: primary-contact-list %}
+        {% endif %}
+        {% if spouse-contact-count > 0 %}
+            {% assign household-contact-list = household-contact-list | append: spouse-contact-list %}
+        {% endif %}
+        {% if kid-contact-count > 0 %}
+            {% assign household-contact-list = household-contact-list | append: kid-contact-list %}
+        {% endif %}
+
+
+        {% comment %} Get the household photo {% endcomment %}
+        {% if household.primary_contact.custom_tabs.directory.photo %}
+            {% assign primary-photo = household.primary_contact.custom_tabs.directory.photo.url %}
+        {% endif %}
+        {% if primary-photo == "" %}
+            {% assign primary-photo = '' %}
+        {% endif %}
+
+        {% comment %} Build the household address {% endcomment %}
+        {% if household.primary_address %}
+            {% capture address-line-a %}
+                {{ household.primary_address.street_line_1 }} {{ household.primary_address.street_line_2 }}
+            {% endcapture %}
+    
+            {% capture address-line-b %}
+                {{ household.primary_address.city }}, {{ household.primary_address.state }} {{ household.primary_address.zip }}
+            {% endcapture %}
+        {% endif %}
+
+      {% comment %} FORM OUTPUT BEGINS HERE {% endcomment %}
+  		{% assign page-boundary = household-count | modulo:4 %}
+  		{% if page-boundary == 1 %}
+      <div class="page_content">
+			{% endif %}
+        <div class="household_entry">
+          	<div class="HouseholdPhoto">
+            	<img src="{{ primary-photo }}" width="85%" />
+            </div>
+            
+            {% comment %} Household Name {% endcomment %}
+            <div class="HouseholdName">
+                <div style="display:inline-block;">
+                    {% comment %} Build the household name with membership markup{% endcomment %}
+                    {% if spouse-first-name == "" %}
+                        {% comment %} There is no spouse {% endcomment %}
+                        {% if primary-ismember == true %}
+                            <span style='font-weight:bold;'>{{ primary-name }}</span>
+                        {% else %}
+                            <span>{{ primary-name }}</span>
+                        {% endif %}
+                    {% else %}
+                        {% if primary-last-name == spouse-last-name %}
+                            {% comment %} There is a spouse and they have the same last name {% endcomment %}
+                            {% if primary-ismember == true and spouse-ismember == true %}
+                                <span style='font-weight:bold;'>{{ primary-first-name }} and {{ spouse-first-name }} {{ primary-last-name }}</span>
+                            {% elsif primary-ismember == true and spouse-ismember == false %}
+                                <span style='font-weight:bold;'>{{ primary-first-name }}</span> and {{ spouse-first-name }} {{ primary-last-name}}
+                            {% elsif primary-ismember == false and spouse-ismember == true %}
+                                {{ primary-first-name }} and <span style='font-weight:bold;'>{{ spouse-first-name }}</span> {{ primary-last-name }}
+                            {% else %}
+                                {{ primary-first-name }} and {{ spouse-first-name }} {{ primary-last-name }}
+                            {% endif %}
+                        {% else %}
+                            {% comment %} There is a spouse and they have the different last names {% endcomment %}
+                            {% if primary-ismember == true and spouse-ismember == true %}
+                                <span style='font-weight:bold;'>{{ primary-name }} and {{ spouse-name }}</span>
+                            {% elsif primary-ismember == true and spouse-ismember == false %}
+                                <span style='font-weight:bold;'>{{ primary-name }}</span> and {{ spouse-name }}
+                            {% elsif primary-ismember == false and spouse-ismember == true %}
+                                {{ primary-name }} and <span style='font-weight:bold;'>{{ spouse-name }}</span>
+                            {% else %}
+                                {{ primary-name }} and {{ spouse-name }}
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% comment %} Household members {% endcomment %}
+            <div class="HouseholdMembers">
+                {% assign household-members-fontweight = household-members-fontweight | split: "|" %}
+                {% assign household-members = household-members | split: "|" %}
+                {% for house-member in household-members%}
+                    <span style='font-weight:{{ household-members-fontweight[forloop.index0] }};'>{{ house-member }}</span>{% if forloop.index < forloop.length %},{% endif %}
+                {% endfor %}
+            </div>
+
+            {% comment %} Household address {% endcomment %}
+            <div class="HouseholdAddress">
+                <div>{{ address-line-a }} </div>
+                <div>{{ address-line-b }} </div>
+            </div>
+
+            {% comment %} Household contacts {% endcomment %}
+            <div class="HouseholdContacts">
+                {% assign household-contact-list = household-contact-list | split: "|" %}
+                {% for phone in household-contact-list %}
+                    <div style="display:inline-block;width:100%;">{{ phone }}</div>
+                {% endfor %}
+            </div>
+        </div>
+          
+  		{% if page-boundary == 0 %}
+      </div>
+      {% endif %}
+    {% endfor %}
+</body>
+</html>
