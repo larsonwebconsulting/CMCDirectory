@@ -1,2 +1,2 @@
 # CMCDirectory
-CMC print directory liquis template code
+CMC print directory liquid template code
