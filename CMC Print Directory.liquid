@@ -71,7 +71,7 @@
                 {% comment %} Fetch and format a phone number only if the type is not Other {% endcomment %}
                 {% if phone-location != "Other" %}
                     {% comment %} Get the phone number digits and format them {% endcomment %}
-                    {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "\(" | remove: "\)" | split: "" %}
+                    {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "(" | remove: ")" | remove: " " | split: "" %}
                     {% assign phone-number = "" %}
                     {% if phone-digits.size == 7 %}
                         {% capture phone-number %}
@@ -171,7 +171,7 @@
                             {% comment %} Fetch and format a phone number only if the type is not Other {% endcomment %}
                             {% if phone-location != "Other" %}
                                 {% comment %} Get the phone number digits and format them {% endcomment %}
-                                {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "\(" | remove: "\)" | split: "" %}
+                                {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "(" | remove: ")" | remove: " " | split: "" %}
                                 {% assign phone-number = "" %}
                                 {% if phone-digits.size == 7 %}
                                     {% capture phone-number %}
@@ -265,7 +265,7 @@
                             {% comment %} Fetch and format a phone number only if the type is not Other {% endcomment %}
                             {% if phone-location != "Other" %}
                                 {% comment %} Get the phone number digits and format them {% endcomment %}
-                                {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "\(" | remove: "\)" | split: "" %}
+                                {% assign phone-digits = phonenumber.number | remove: "-" | remove: "." | remove: "(" | remove: ")" | remove: " " | split: "" %}
                                 {% assign phone-number = "" %}
                                 {% if phone-digits.size == 7 %}
                                     {% capture phone-number %}
