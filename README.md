@@ -2,7 +2,7 @@
 CMC print directory liquid template code
 
 
-## DInal document generation instructions
+## Final document generation instructions
 
 1. Print your list to PDF using the "CMC Print Directory" report.
 2. Download the PDF file to your local machine
